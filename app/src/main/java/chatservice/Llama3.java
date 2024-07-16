@@ -17,8 +17,9 @@
 //
 // Enjoy!
 
+package chatservice;
+
 import java.io.IOException;
-import java.io.PrintStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -28,7 +29,6 @@ import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
@@ -178,130 +178,6 @@ public class Llama3 {
     if (!options.stream()) {
       String responseText = model.tokenizer().decode(responseTokens);
       System.out.println(responseText);
-    }
-  }
-
-  record Options(
-      Path modelPath,
-      String prompt,
-      String systemPrompt,
-      boolean interactive,
-      float temperature,
-      float topp,
-      long seed,
-      int maxTokens,
-      boolean stream,
-      boolean echo) {
-
-    Options {
-      require(modelPath != null, "Missing argument: --model <path> is required");
-      require(
-          interactive || prompt != null,
-          "Missing argument: --prompt is required in --instruct mode e.g. --prompt \"Why is the sky blue?\"");
-      require(0 <= temperature, "Invalid argument: --temperature must be non-negative");
-      require(0 <= topp && topp <= 1, "Invalid argument: --top-p must be within [0, 1]");
-    }
-
-    static void require(boolean condition, String messageFormat, Object... args) {
-      if (!condition) {
-        System.out.println("ERROR " + messageFormat.formatted(args));
-        System.out.println();
-        printUsage(System.out);
-        System.exit(-1);
-      }
-    }
-
-    static void printUsage(PrintStream out) {
-      out.println("Usage:  jbang Llama3.java [options]");
-      out.println();
-      out.println("Options:");
-      out.println("  --model, -m <path>            required, path to .gguf file");
-      out.println("  --interactive, --chat, -i     run in chat mode");
-      out.println("  --instruct                    run in instruct (once) mode, default mode");
-      out.println("  --prompt, -p <string>         input prompt");
-      out.println("  --system-prompt, -sp <string> (optional) system prompt");
-      out.println("  --temperature, -temp <float>  temperature in [0,inf], default 0.1");
-      out.println(
-          "  --top-p <float>               p value in top-p (nucleus) sampling in [0,1] default 0.95");
-      out.println("  --seed <long>                 random seed, default System.nanoTime()");
-      out.println(
-          "  --max-tokens, -n <int>        number of steps to run for < 0 = limited by context length, default 512");
-      out.println(
-          "  --stream <boolean>            print tokens during generation; may cause encoding artifacts for non ASCII text, default true");
-      out.println(
-          "  --echo <boolean>              print ALL tokens to stderr, if true, recommended to set --stream=false, default false");
-      out.println();
-      out.println("Examples:");
-      out.println("  jbang Llama3.java --model llama3-8b-q4_0.gguf --prompt \"Tell me a joke\"");
-      out.println(
-          "  jbang Llama3.java --model llama3-8b-q4_0.gguf --system-prompt \"Reply concisely, in French\" --prompt \"Who was Marie Curie?\"");
-      out.println(
-          "  jbang Llama3.java --model llama3-8b-q4_0.gguf --system-prompt \"Answer concisely\" --chat");
-      out.println("  jbang Llama3.java --model llama3-8b-q4_0.gguf --chat");
-      out.println(
-          "  jbang Llama3.java --model llama3-8b-q4_0.gguf --prompt \"Print 5 emojis\" --stream=false");
-    }
-
-    static Options parseOptions(String[] args) {
-      String prompt = null;
-      String systemPrompt = null;
-      float temperature = 0.1f;
-      float topp = 0.95f;
-      Path modelPath = null;
-      long seed = System.nanoTime();
-      // Keep max context length small for low-memory devices.
-      int maxTokens = 512;
-      boolean interactive = false;
-      boolean stream = true;
-      boolean echo = false;
-
-      for (int i = 0; i < args.length; i++) {
-        String optionName = args[i];
-        require(optionName.startsWith("-"), "Invalid option %s", optionName);
-        switch (optionName) {
-          case "--interactive", "--chat", "-i" -> interactive = true;
-          case "--instruct" -> interactive = false;
-          case "--help", "-h" -> {
-            printUsage(System.out);
-            System.exit(0);
-          }
-          default -> {
-            String nextArg;
-            if (optionName.contains("=")) {
-              String[] parts = optionName.split("=", 2);
-              optionName = parts[0];
-              nextArg = parts[1];
-            } else {
-              require(i + 1 < args.length, "Missing argument for option %s", optionName);
-              nextArg = args[i + 1];
-              i += 1; // skip arg
-            }
-            switch (optionName) {
-              case "--prompt", "-p" -> prompt = nextArg;
-              case "--system-prompt", "-sp" -> systemPrompt = nextArg;
-              case "--temperature", "--temp" -> temperature = Float.parseFloat(nextArg);
-              case "--top-p" -> topp = Float.parseFloat(nextArg);
-              case "--model", "-m" -> modelPath = Paths.get(nextArg);
-              case "--seed", "-s" -> seed = Long.parseLong(nextArg);
-              case "--max-tokens", "-n" -> maxTokens = Integer.parseInt(nextArg);
-              case "--stream" -> stream = Boolean.parseBoolean(nextArg);
-              case "--echo" -> echo = Boolean.parseBoolean(nextArg);
-              default -> require(false, "Unknown option: %s", optionName);
-            }
-          }
-        }
-      }
-      return new Options(
-          modelPath,
-          prompt,
-          systemPrompt,
-          interactive,
-          temperature,
-          topp,
-          seed,
-          maxTokens,
-          stream,
-          echo);
     }
   }
 
@@ -1586,182 +1462,6 @@ enum GGMLType {
 }
 
 /**
- * Over-simplified, shapeless, float tensor.
- *
- * <p>Not a strict tensor, but rather just a sequence of floats, not required to be backed by memory
- * e.g. can represent a sequence of quantized floats.
- */
-abstract class FloatTensor {
-  static final ValueLayout.OfFloat JAVA_FLOAT_LE =
-      ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-  static final ValueLayout.OfShort JAVA_SHORT_LE =
-      ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
-
-  static final boolean USE_VECTOR_API =
-      Boolean.parseBoolean(System.getProperty("llama.VectorAPI", "true"));
-
-  // Preferred vector size for the fast multiplication routines.
-  // (Apple Silicon) NEON only supports up-to 128bit vectors.
-  static final VectorSpecies<Float> F_SPECIES =
-      FloatVector.SPECIES_PREFERRED.vectorBitSize() == 128
-          ? FloatVector.SPECIES_128
-          : FloatVector.SPECIES_256;
-
-  abstract int size();
-
-  abstract float getFloat(int index);
-
-  abstract void setFloat(int index, float value);
-
-  abstract FloatVector getFloatVector(VectorSpecies<Float> species, int offset);
-
-  abstract GGMLType type();
-
-  public static int numberOfElements(int... dimensions) {
-    assert Arrays.stream(dimensions).allMatch(i -> i > 0);
-    return Arrays.stream(dimensions).reduce(Math::multiplyExact).orElseThrow();
-  }
-
-  static float scalarDot(
-      FloatTensor thiz, int thisOffset, FloatTensor that, int thatOffset, int size) {
-    float result = 0f;
-    for (int j = 0; j < size; j++) {
-      result += thiz.getFloat(thisOffset + j) * that.getFloat(thatOffset + j);
-    }
-    return result;
-  }
-
-  float dot(int thisOffset, FloatTensor that, int thatOffset, int size) {
-    return scalarDot(this, thisOffset, that, thatOffset, size);
-  }
-
-  void matmul(FloatTensor that, FloatTensor out, int dim0, int dim1) {
-    Parallel.parallelFor(0, dim0, i -> out.setFloat(i, dot(i * dim1, that, 0, dim1)));
-  }
-
-  @FunctionalInterface
-  interface AggregateFunction {
-    float apply(float acc, float value);
-  }
-
-  float reduce(int thisOffset, int size, float seed, AggregateFunction reduce) {
-    float result = seed;
-    for (int i = 0; i < size; ++i) {
-      result = reduce.apply(result, getFloat(thisOffset + i));
-    }
-    return result;
-  }
-
-  float sum(int thisOffset, int size) {
-    return reduce(thisOffset, size, 0f, Float::sum);
-  }
-
-  float max(int thisOffset, int size) {
-    return reduce(thisOffset, size, Float.NEGATIVE_INFINITY, Float::max);
-  }
-
-  void copyTo(int thisOffset, FloatTensor that, int thatOffset, int size) {
-    that.mapWithIndexInPlace(
-        thatOffset, size, (value, index) -> this.getFloat(index - thatOffset + thisOffset));
-  }
-
-  int argmax(int thisOffset, int size) {
-    assert size > 0;
-    int maxIndex = thisOffset;
-    float maxValue = this.getFloat(maxIndex);
-    int endIndex = thisOffset + size;
-    for (int i = thisOffset; i < endIndex; ++i) {
-      float f = this.getFloat(i);
-      if (f > maxValue) {
-        maxValue = f;
-        maxIndex = i;
-      }
-    }
-    return maxIndex;
-  }
-
-  int argmax() {
-    return argmax(0, size());
-  }
-
-  @FunctionalInterface
-  interface MapFunction {
-    float apply(float value);
-  }
-
-  @FunctionalInterface
-  interface MapWithIndexFunction {
-    float apply(float value, int index);
-  }
-
-  FloatTensor mapInPlace(int thisOffset, int size, MapFunction mapFunction) {
-    int endIndex = thisOffset + size;
-    for (int i = thisOffset; i < endIndex; ++i) {
-      setFloat(i, mapFunction.apply(getFloat(i)));
-    }
-    return this;
-  }
-
-  FloatTensor mapInPlace(MapFunction mapFunction) {
-    return mapInPlace(0, size(), mapFunction);
-  }
-
-  FloatTensor mapWithIndexInPlace(
-      int thisOffset, int size, FloatTensor.MapWithIndexFunction mapWithIndexFunction) {
-    int endOffset = thisOffset + size;
-    for (int i = thisOffset; i < endOffset; ++i) {
-      setFloat(i, mapWithIndexFunction.apply(getFloat(i), i));
-    }
-    return this;
-  }
-
-  FloatTensor addInPlace(int thisOffset, FloatTensor that, int thatOffset, int size) {
-    return mapWithIndexInPlace(
-        thisOffset, size, (value, index) -> value + that.getFloat(index - thisOffset + thatOffset));
-  }
-
-  FloatTensor addInPlace(FloatTensor that) {
-    return addInPlace(0, that, 0, size());
-  }
-
-  FloatTensor multiplyInPlace(int thisOffset, FloatTensor that, int thatOffset, int size) {
-    return mapWithIndexInPlace(
-        thisOffset, size, (value, index) -> value * that.getFloat(index - thisOffset + thatOffset));
-  }
-
-  FloatTensor multiplyInPlace(FloatTensor that) {
-    return multiplyInPlace(0, that, 0, size());
-  }
-
-  FloatTensor divideInPlace(int thisOffset, int size, float value) {
-    return mapInPlace(thisOffset, size, f -> f / value);
-  }
-
-  FloatTensor fillInPlace(int thisOffset, int size, float value) {
-    return mapInPlace(thisOffset, size, unused -> value);
-  }
-
-  FloatTensor softmaxInPlace(int thisOffset, int size) {
-    // find max value (for numerical stability)
-    float maxVal = max(thisOffset, size);
-    // exp and sum
-    mapInPlace(thisOffset, size, f -> (float) Math.exp(f - maxVal));
-    float sum = sum(thisOffset, size);
-    // normalize
-    return divideInPlace(thisOffset, size, sum);
-  }
-
-  FloatTensor saxpyInPlace(int thisOffset, FloatTensor that, int thatOffset, int size, float a) {
-    // this[thatOffset ... thatOffset + size) = a * that[thatOffset ... thatOffset + size) +
-    // this[thisOffset ... thisOffset + size)
-    for (int i = 0; i < size; ++i) {
-      setFloat(thisOffset + i, a * that.getFloat(thatOffset + i) + this.getFloat(thisOffset + i));
-    }
-    return this;
-  }
-}
-
-/**
  * {@link FloatTensor} quantized in the {@link GGMLType#Q4_0} format.
  *
  * <p>This tensor implementation is not compatible with {@link FloatTensor}, but {@link #dot(int,
@@ -2134,13 +1834,6 @@ record Vocabulary(String[] tokens, float[] scores, Map<String, Integer> tokenToI
   public int size() {
     return tokens.length;
   }
-}
-
-@FunctionalInterface
-interface Sampler {
-  int sampleToken(FloatTensor logits);
-
-  Sampler ARGMAX = FloatTensor::argmax;
 }
 
 record CategoricalSampler(RandomGenerator rng) implements Sampler {

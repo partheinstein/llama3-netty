@@ -30,10 +30,28 @@ public class ChatServer {
     @Override
     public void chat(
         Chat.Request request, io.grpc.stub.StreamObserver<Chat.Response> responseObserver) {
-      Chat.Response resp =
-          Chat.Response.newBuilder().setMsg("Hey partheinstein, what are you going to do?").build();
-      responseObserver.onNext(resp);
-      responseObserver.onCompleted();
+      try {
+        Options options =
+            Options.parseOptions(new String[] {"-p", "what is the capital of India?"});
+        Llama model = ModelLoader.loadModel(options.modelPath(), options.maxTokens());
+        Sampler sampler =
+            Llama3.selectSampler(
+                model.configuration().vocabularySize,
+                options.temperature(),
+                options.topp(),
+                options.seed());
+
+        Llama3.runInstructOnce(model, sampler, options);
+
+        Chat.Response resp =
+            Chat.Response.newBuilder()
+                .setMsg("Hey partheinstein, what are you going to do?")
+                .build();
+        responseObserver.onNext(resp);
+        responseObserver.onCompleted();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
     }
   }
 
