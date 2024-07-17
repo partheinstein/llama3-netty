@@ -19,10 +19,14 @@ package chatservice;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
+import io.grpc.protobuf.services.ProtoReflectionService;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import io.grpc.protobuf.services.ProtoReflectionService;
 
 /** Server that manages startup/shutdown of a {@code Greeter} server. */
 public class ChatServer {
@@ -32,8 +36,34 @@ public class ChatServer {
     public void chat(
         Chat.Request request, io.grpc.stub.StreamObserver<Chat.Response> responseObserver) {
       try {
+
+        String prompt = request.getMsg();
+        String systemPrompt = null;
+        float temperature = 0.1f;
+        float topp = 0.95f;
+        long seed = System.nanoTime();
+        Path modelPath =
+            Paths.get("/home/partheinstein/git/llama3.java/Meta-Llama-3-8B-Instruct-Q4_0.gguf");
+        int maxTokens = 512;
+        boolean interactive = false;
+        boolean stream = true;
+        boolean echo = false;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
         Options options =
-            Options.parseOptions(new String[] {"-p", "what is the capital of India?"});
+            new Options(
+                modelPath,
+                prompt,
+                systemPrompt,
+                interactive,
+                temperature,
+                topp,
+                seed,
+                maxTokens,
+                stream,
+                echo,
+                out);
+
         Llama model = ModelLoader.loadModel(options.modelPath(), options.maxTokens());
         Sampler sampler =
             Llama3.selectSampler(
@@ -43,14 +73,11 @@ public class ChatServer {
                 options.seed());
 
         Llama3.runInstructOnce(model, sampler, options);
-
-        Chat.Response resp =
-            Chat.Response.newBuilder()
-                .setMsg("Hey partheinstein, what are you going to do?")
-                .build();
+        String respMsg = new String(options.out().toByteArray(), StandardCharsets.UTF_8);
+        Chat.Response resp = Chat.Response.newBuilder().setMsg(respMsg).build();
         responseObserver.onNext(resp);
         responseObserver.onCompleted();
-      } catch (IOException e) {
+      } catch (Exception e) {
         e.printStackTrace();
       }
     }
@@ -66,7 +93,7 @@ public class ChatServer {
     server =
         Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
             .addService(new ChatSvc())
-	    .addService(ProtoReflectionService.newInstance())
+            .addService(ProtoReflectionService.newInstance())
             .build()
             .start();
     logger.info("Server started, listening on " + port);

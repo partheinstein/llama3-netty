@@ -1,8 +1,7 @@
 package chatservice;
 
-import java.io.PrintStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 public record Options(
@@ -15,7 +14,8 @@ public record Options(
     long seed,
     int maxTokens,
     boolean stream,
-    boolean echo) {
+    boolean echo,
+    ByteArrayOutputStream out) {
 
   public Options {
     require(modelPath != null, "Missing argument: --model <path> is required");
@@ -30,92 +30,7 @@ public record Options(
     if (!condition) {
       System.out.println("ERROR " + messageFormat.formatted(args));
       System.out.println();
-      printUsage(System.out);
       throw new IllegalArgumentException();
     }
-  }
-
-  static void printUsage(PrintStream out) {
-    out.println("Usage:  jbang Llama3.java [options]");
-    out.println();
-    out.println("Options:");
-    out.println("  --model, -m <path>            required, path to .gguf file");
-    out.println("  --interactive, --chat, -i     run in chat mode");
-    out.println("  --instruct                    run in instruct (once) mode, default mode");
-    out.println("  --prompt, -p <string>         input prompt");
-    out.println("  --system-prompt, -sp <string> (optional) system prompt");
-    out.println("  --temperature, -temp <float>  temperature in [0,inf], default 0.1");
-    out.println(
-        "  --top-p <float>               p value in top-p (nucleus) sampling in [0,1] default 0.95");
-    out.println("  --seed <long>                 random seed, default System.nanoTime()");
-    out.println(
-        "  --max-tokens, -n <int>        number of steps to run for < 0 = limited by context length, default 512");
-    out.println(
-        "  --stream <boolean>            print tokens during generation; may cause encoding artifacts for non ASCII text, default true");
-    out.println(
-        "  --echo <boolean>              print ALL tokens to stderr, if true, recommended to set --stream=false, default false");
-    out.println();
-  }
-
-  static Options parseOptions(String[] args) {
-    String prompt = null;
-    String systemPrompt = null;
-    float temperature = 0.1f;
-    float topp = 0.95f;
-    Path modelPath = null;
-    long seed = System.nanoTime();
-    // Keep max context length small for low-memory devices.
-    int maxTokens = 512;
-    boolean interactive = false;
-    boolean stream = true;
-    boolean echo = false;
-
-    for (int i = 0; i < args.length; i++) {
-      String optionName = args[i];
-      require(optionName.startsWith("-"), "Invalid option %s", optionName);
-      switch (optionName) {
-        case "--interactive", "--chat", "-i" -> interactive = true;
-        case "--instruct" -> interactive = false;
-        case "--help", "-h" -> {
-          printUsage(System.out);
-          System.exit(0);
-        }
-        default -> {
-          String nextArg;
-          if (optionName.contains("=")) {
-            String[] parts = optionName.split("=", 2);
-            optionName = parts[0];
-            nextArg = parts[1];
-          } else {
-            require(i + 1 < args.length, "Missing argument for option %s", optionName);
-            nextArg = args[i + 1];
-            i += 1; // skip arg
-          }
-          switch (optionName) {
-            case "--prompt", "-p" -> prompt = nextArg;
-            case "--system-prompt", "-sp" -> systemPrompt = nextArg;
-            case "--temperature", "--temp" -> temperature = Float.parseFloat(nextArg);
-            case "--top-p" -> topp = Float.parseFloat(nextArg);
-            case "--model", "-m" -> modelPath = Paths.get(nextArg);
-            case "--seed", "-s" -> seed = Long.parseLong(nextArg);
-            case "--max-tokens", "-n" -> maxTokens = Integer.parseInt(nextArg);
-            case "--stream" -> stream = Boolean.parseBoolean(nextArg);
-            case "--echo" -> echo = Boolean.parseBoolean(nextArg);
-            default -> require(false, "Unknown option: %s", optionName);
-          }
-        }
-      }
-    }
-    return new Options(
-        modelPath,
-        prompt,
-        systemPrompt,
-        interactive,
-        temperature,
-        topp,
-        seed,
-        maxTokens,
-        stream,
-        echo);
   }
 }

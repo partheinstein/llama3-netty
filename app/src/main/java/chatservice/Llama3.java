@@ -138,7 +138,7 @@ public class Llama3 {
     }
   }
 
-  static void runInstructOnce(Llama model, Sampler sampler, Options options) {
+  static void runInstructOnce(Llama model, Sampler sampler, Options options) throws Exception {
     Llama.State state = model.createNewState();
     ChatFormat chatFormat = new ChatFormat(model.tokenizer());
 
@@ -168,7 +168,14 @@ public class Llama3 {
             token -> {
               if (options.stream()) {
                 if (!model.tokenizer().isSpecialToken(token)) {
-                  System.out.print(model.tokenizer().decode(List.of(token)));
+                  byte[] tokens =
+                      model.tokenizer().decode(List.of(token)).getBytes(StandardCharsets.UTF_8);
+
+                  try {
+                    options.out().write(tokens, 0, tokens.length);
+                  } catch (Exception e) {
+                    throw new RuntimeException(e);
+                  }
                 }
               }
             });
@@ -176,24 +183,9 @@ public class Llama3 {
       responseTokens.removeLast();
     }
     if (!options.stream()) {
-      String responseText = model.tokenizer().decode(responseTokens);
-      System.out.println(responseText);
-    }
-  }
-
-  public static void main(String[] args) throws IOException {
-    Options options = Options.parseOptions(args);
-    Llama model = ModelLoader.loadModel(options.modelPath(), options.maxTokens());
-    Sampler sampler =
-        selectSampler(
-            model.configuration().vocabularySize,
-            options.temperature(),
-            options.topp(),
-            options.seed());
-    if (options.interactive()) {
-      runInteractive(model, sampler, options);
-    } else {
-      runInstructOnce(model, sampler, options);
+      byte[] responseText =
+          model.tokenizer().decode(responseTokens).getBytes(StandardCharsets.UTF_8);
+      options.out().write(responseText, 0, responseText.length);
     }
   }
 }
