@@ -22,6 +22,7 @@ import io.grpc.Server;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import io.grpc.protobuf.services.ProtoReflectionService;
 
 /** Server that manages startup/shutdown of a {@code Greeter} server. */
 public class ChatServer {
@@ -65,6 +66,7 @@ public class ChatServer {
     server =
         Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
             .addService(new ChatSvc())
+	    .addService(ProtoReflectionService.newInstance())
             .build()
             .start();
     logger.info("Server started, listening on " + port);
