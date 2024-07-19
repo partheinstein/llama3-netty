@@ -38,7 +38,8 @@ public class ChatServer {
       try {
 
         String prompt = request.getMsg();
-        String systemPrompt = null;
+        String systemPrompt =
+            "GENERAL INSTRUCTIONS\nYou are a domain expert. Your task is to break down a complex question into simpler sub-parts.\nUSER QUESTION{{user_question}}\nANSWER FORMAT\n{\"sub-questions\":[\"<FILL>\"]}";
         float temperature = 0.1f;
         float topp = 0.95f;
         long seed = System.nanoTime();
