@@ -19,6 +19,7 @@
 
 package chatservice;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -138,19 +139,26 @@ public class Llama3 {
     }
   }
 
-  static void runInstructOnce(Llama model, Sampler sampler, Options options) throws Exception {
+  static void runInstructOnce(
+      Llama model,
+      Sampler sampler,
+      String systemPrompt,
+      String prompt,
+      int maxTokens,
+      boolean echo,
+      ByteArrayOutputStream out)
+      throws Exception {
     Llama.State state = model.createNewState();
     ChatFormat chatFormat = new ChatFormat(model.tokenizer());
 
     List<Integer> promptTokens = new ArrayList<>();
     promptTokens.add(chatFormat.beginOfText);
-    if (options.systemPrompt() != null) {
-      promptTokens.addAll(
-          chatFormat.encodeMessage(
-              new ChatFormat.Message(ChatFormat.Role.SYSTEM, options.systemPrompt())));
-    }
+
     promptTokens.addAll(
-        chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, options.prompt())));
+        chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.SYSTEM, systemPrompt)));
+
+    promptTokens.addAll(
+        chatFormat.encodeMessage(new ChatFormat.Message(ChatFormat.Role.USER, prompt)));
     promptTokens.addAll(
         chatFormat.encodeHeader(new ChatFormat.Message(ChatFormat.Role.ASSISTANT, "")));
 
@@ -162,31 +170,27 @@ public class Llama3 {
             0,
             promptTokens,
             stopTokens,
-            options.maxTokens(),
+            maxTokens,
             sampler,
-            options.echo(),
+            echo,
             token -> {
-              if (options.stream()) {
-                if (!model.tokenizer().isSpecialToken(token)) {
-                  byte[] tokens =
-                      model.tokenizer().decode(List.of(token)).getBytes(StandardCharsets.UTF_8);
+              if (!model.tokenizer().isSpecialToken(token)) {
+                byte[] tokens =
+                    model.tokenizer().decode(List.of(token)).getBytes(StandardCharsets.UTF_8);
 
-                  try {
-                    options.out().write(tokens, 0, tokens.length);
-                  } catch (Exception e) {
-                    throw new RuntimeException(e);
-                  }
+                try {
+                  out.write(tokens, 0, tokens.length);
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
                 }
               }
             });
     if (!responseTokens.isEmpty() && stopTokens.contains(responseTokens.getLast())) {
       responseTokens.removeLast();
     }
-    if (!options.stream()) {
-      byte[] responseText =
-          model.tokenizer().decode(responseTokens).getBytes(StandardCharsets.UTF_8);
-      options.out().write(responseText, 0, responseText.length);
-    }
+
+    byte[] responseText = model.tokenizer().decode(responseTokens).getBytes(StandardCharsets.UTF_8);
+    out.write(responseText, 0, responseText.length);
   }
 }
 
