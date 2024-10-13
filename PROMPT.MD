@@ -49,5 +49,11 @@ user_prompt = I baked 15 muffins. I ate 2 muffins and gave 5 muffins to a neighb
 generated = "Here are the sub-questions to help break down the problem:\n\n{\"sub-questions\": [\n\"What is the initial number of muffins?\",\n\"How many muffins did you eat?\",\n\"How many muffins did you give to the neighbor?\",\n\"How many muffins did your partner buy?\",\n\"How many muffins did your partner eat?\",\n\"What is the total number of muffins left after all the transactions?\"\n]}"
 ```
 
-Question decomposition is important for agent planning as the NV article points out. How does this work though? 
+Question decomposition is important for agent planning as the NV article points out. How does this work though?
+
+This is basically the transformer model. Andrej Karpathy explains the details in his GPT from scratch Youtube video.
+
+Each previous embedding in the context window (block_size) is multiplied by a weight/affinity, which is a 2-D vector. The values of the vector are the output of multipying the query vector by the embedding and the key vector by the embedding. This is called self-attention where a next token to be generated is somehow influenced by the preceeding tokens.
+
+
 
